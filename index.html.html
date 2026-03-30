@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GTA RP Map (Firebase)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+body { margin:0; font-family: 'Segoe UI', sans-serif; background:#0b0f1a; color:#e6f0ff; }
+#map { height:100vh; }
+.panel {
+  position:absolute; top:15px; left:15px;
+  width:260px; padding:14px;
+  background:#111827;
+  border-radius:14px;
+  box-shadow:0 8px 25px rgba(0,0,0,0.5);
+  z-index:1000;
+}
+.panel input, .panel select, .panel textarea, .panel button {
+  width:100%; margin-bottom:6px; padding:7px;
+  border-radius:8px; border:none;
+  background:#1f2937; color:white;
+}
+.panel button { background:#2563eb; cursor:pointer; }
+.panel button:hover { background:#1d4ed8; }
+</style>
+</head>
+<body>
+
+<div class="panel">
+<h3>RP Map</h3>
+<input id="name" placeholder="Name">
+<select id="category">
+<option>Business</option>
+<option>Gang</option>
+<option>Police</option>
+<option>Event</option>
+<option>House</option>
+<option>Other</option>
+</select>
+<textarea id="desc" placeholder="Description"></textarea>
+<input id="img" placeholder="Image URL">
+<button onclick="enableAddMode()">Add Marker</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+// 🔥 REPLACE WITH YOUR FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_BUCKET",
+  messagingSenderId: "YOUR_ID",
+  appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-2 });
+const bounds=[[0,0],[8192,8192]];
+
+const mapImage = "https://raw.githubusercontent.com/gta5-map/gta5-map.github.io/master/images/map.jpg";
+L.imageOverlay(mapImage, bounds).addTo(map);
+map.fitBounds(bounds);
+
+let layer = L.layerGroup().addTo(map);
+let adding=false;
+
+const icons = {
+  Business: icon('https://cdn-icons-png.flaticon.com/512/1077/1077976.png'),
+  Gang: icon('https://cdn-icons-png.flaticon.com/512/833/833472.png'),
+  Police: icon('https://cdn-icons-png.flaticon.com/512/2991/2991148.png'),
+  Event: icon('https://cdn-icons-png.flaticon.com/512/747/747310.png'),
+  House: icon('https://cdn-icons-png.flaticon.com/512/69/69524.png'),
+  Other: icon('https://cdn-icons-png.flaticon.com/512/684/684908.png')
+};
+
+function icon(url){ return L.icon({iconUrl:url, iconSize:[26,26]}); }
+
+function enableAddMode(){ adding=true; alert('Click map'); }
+
+map.on('click',async e=>{
+  if(!adding) return;
+
+  const data = {
+    name:name.value,
+    category:category.value,
+    desc:desc.value,
+    img:img.value,
+    lat:e.latlng.lat,
+    lng:e.latlng.lng
+  };
+
+  await db.collection('markers').add(data);
+  adding=false;
+});
+
+function renderMarker(doc){
+  const m = doc.data();
+
+  L.marker([m.lat,m.lng],{icon:icons[m.category]})
+    .addTo(layer)
+    .bindPopup(`
+      <b>${m.name}</b><br>
+      ${m.category}<br>
+      ${m.desc||''}<br>
+      ${m.img?`<img src='${m.img}' width='160'>`:''}
+    `);
+}
+
+// 🔥 REALTIME SYNC
+db.collection('markers').onSnapshot(snapshot=>{
+  layer.clearLayers();
+  snapshot.forEach(doc=> renderMarker(doc));
+});
+
+const name=document.getElementById('name');
+const category=document.getElementById('category');
+const desc=document.getElementById('desc');
+const img=document.getElementById('img');
+</script>
+</body>
+</html>
